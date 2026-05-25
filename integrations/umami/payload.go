@@ -9,7 +9,7 @@ type Payload struct {
 	WebsiteID string         `json:"website"`
 	Hostname  string         `json:"hostname"`
 	Language  string         `json:"language"`
-	Url       string         `json:"url"`
+	URL       string         `json:"url"`
 	Name      string         `json:"name"`
 	Data      map[string]any `json:"data,omitempty"`
 }
