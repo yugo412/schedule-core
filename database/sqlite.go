@@ -1,7 +1,7 @@
 package database
 
 import (
-	"github.com/jmoiron/sqlx"
+	"github.com/vinovest/sqlx"
 
 	_ "modernc.org/sqlite"
 )
