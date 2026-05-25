@@ -12,6 +12,9 @@ type Config struct {
 	AppPort string
 	DbPath  string
 	MainUrl string
+
+	UmamiUrl       string
+	UmamiWebsiteId string
 }
 
 func Load() (*Config, error) {
@@ -26,6 +29,9 @@ func Load() (*Config, error) {
 		AppPort: os.Getenv("APP_PORT"),
 		DbPath:  os.Getenv("DB_PATH"),
 		MainUrl: os.Getenv("MAIN_URL"),
+
+		UmamiUrl:       os.Getenv("UMAMI_URL"),
+		UmamiWebsiteId: os.Getenv("UMAMI_WEBSITE_ID"),
 	}
 
 	return cfg, nil

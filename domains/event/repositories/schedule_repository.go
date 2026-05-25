@@ -20,7 +20,7 @@ func NewScheduleRepository(db *sqlx.DB) *ScheduleRepository {
 func (r *ScheduleRepository) FindBySlug(ctx context.Context, slug string) (*models.Schedule, error) {
 	schedule := &models.Schedule{}
 
-	query := `SELECT url FROM schedules where slug = ? LIMIT 1`
+	query := `SELECT url, title, slug FROM schedules where slug = ? LIMIT 1`
 
 	err := r.Db.GetContext(ctx, schedule, query, slug)
 	if err != nil {

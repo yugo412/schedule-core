@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/yugo412/schedule-core/app"
 	"github.com/yugo412/schedule-core/domains/event/services"
+	"github.com/yugo412/schedule-core/integrations/umami"
 )
 
 type RedirectHandler struct {
@@ -39,6 +40,19 @@ func (h *RedirectHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	h.app.Umami.TrackEvent(umami.Event{
+		Name:      "registration-click",
+		URL:       r.URL.Path,
+		Hostname:  r.Host,
+		Language:  "id-ID",
+		UserAgent: r.UserAgent(),
+		Data: map[string]any{
+			"slug":  schedule.Slug,
+			"url":   schedule.Url,
+			"title": schedule.Title,
+		},
+	})
 
 	http.Redirect(w, r, schedule.Url, http.StatusFound)
 }

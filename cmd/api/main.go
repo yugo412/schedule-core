@@ -9,6 +9,7 @@ import (
 	"github.com/yugo412/schedule-core/app"
 	"github.com/yugo412/schedule-core/config"
 	"github.com/yugo412/schedule-core/database"
+	"github.com/yugo412/schedule-core/integrations/umami"
 	"github.com/yugo412/schedule-core/router"
 )
 
@@ -25,10 +26,13 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	umamiClient := umami.NewClient(cfg.UmamiUrl, cfg.UmamiWebsiteId, logger)
+
 	app := &app.App{
 		Config: cfg,
 		DB:     db,
 		Logger: logger,
+		Umami:  umamiClient,
 	}
 
 	r := router.New(app)
