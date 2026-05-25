@@ -44,7 +44,12 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 
 func setupRouter(
 	t *testing.T,
-) (http.Handler, *config.Config, *sqlx.DB) {
+) (
+	http.Handler,
+	*config.Config,
+	*sqlx.DB,
+	*httptest.Server,
+) {
 	cfg := &config.Config{
 		MainUrl: "https://example.com",
 	}
@@ -55,7 +60,49 @@ func setupRouter(
 
 	db := setupTestDB(t)
 
-	umamiClient := umami.NewClient("https://localhost", "local", logger)
+	umamiServer := httptest.NewServer(
+		http.HandlerFunc(func(
+			w http.ResponseWriter,
+			r *http.Request,
+		) {
+			switch r.URL.Path {
+
+			case "/api/auth/login":
+				w.Header().Set(
+					"Content-Type",
+					"application/json",
+				)
+
+				w.Write([]byte(`
+				{
+					"token": "secret-token"
+				}
+				`))
+
+			case "/api/realtime/local":
+				w.Header().Set(
+					"Content-Type",
+					"application/json",
+				)
+
+				w.Write([]byte(`
+				{
+					"urls": {
+						"/event": 10
+					}
+				}
+				`))
+			}
+		}),
+	)
+
+	umamiClient := umami.NewClient(
+		umamiServer.URL,
+		"local",
+		"username",
+		"password",
+		logger,
+	)
 
 	application := &app.App{
 		Config: cfg,
@@ -64,11 +111,11 @@ func setupRouter(
 		Umami:  umamiClient,
 	}
 
-	return New(application), cfg, db
+	return New(application), cfg, db, umamiServer
 }
 
 func TestRootRedirect(t *testing.T) {
-	router, cfg, _ := setupRouter(t)
+	router, cfg, _, _ := setupRouter(t)
 
 	request := httptest.NewRequest(
 		http.MethodGet,
@@ -102,7 +149,7 @@ func TestRootRedirect(t *testing.T) {
 }
 
 func TestUpRoute(t *testing.T) {
-	router, _, _ := setupRouter(t)
+	router, _, _, _ := setupRouter(t)
 
 	request := httptest.NewRequest(
 		http.MethodGet,
@@ -136,7 +183,7 @@ func TestUpRoute(t *testing.T) {
 }
 
 func TestOfficialRedirect(t *testing.T) {
-	router, _, db := setupRouter(t)
+	router, _, db, _ := setupRouter(t)
 
 	_, err := db.Exec(`
 		INSERT INTO schedules (
@@ -192,7 +239,7 @@ func TestOfficialRedirect(t *testing.T) {
 }
 
 func TestOfficialRedirectNotFound(t *testing.T) {
-	router, cfg, _ := setupRouter(t)
+	router, cfg, _, _ := setupRouter(t)
 
 	request := httptest.NewRequest(
 		http.MethodGet,
@@ -221,6 +268,32 @@ func TestOfficialRedirectNotFound(t *testing.T) {
 			"expected location %s, got %s",
 			cfg.MainUrl,
 			location,
+		)
+	}
+}
+
+func TestStatsRealtimeRoute(
+	t *testing.T,
+) {
+	router, _, _, _ := setupRouter(t)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/stats/realtime",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	response := recorder.Result()
+
+	if response.StatusCode != http.StatusOK {
+		t.Errorf(
+			"expected status %d, got %d",
+			http.StatusOK,
+			response.StatusCode,
 		)
 	}
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/yugo412/schedule-core/app"
+	"github.com/yugo412/schedule-core/domains/analytic"
 	"github.com/yugo412/schedule-core/domains/redirect"
 )
 
@@ -20,6 +21,8 @@ func New(app *app.App) *chi.Mux {
 	})
 
 	r.Route("/official", redirect.Routes(app))
+
+	r.Route("/stats", analytic.Routes(app))
 
 	return r
 }
