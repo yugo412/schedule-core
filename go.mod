@@ -1,4 +1,4 @@
-module github.com/yourusername/schedule-core
+module github.com/yugo412/schedule-core
 
 go 1.25.10
 
