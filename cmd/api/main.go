@@ -26,7 +26,7 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	umamiClient := umami.NewClient(cfg.UmamiUrl, cfg.UmamiWebsiteId, logger)
+	umamiClient := umami.NewClient(cfg.UmamiUrl, cfg.UmamiWebsiteId, cfg.UmamiUsername, cfg.UmamiPassword, logger)
 
 	app := &app.App{
 		Config: cfg,

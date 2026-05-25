@@ -15,6 +15,8 @@ type Config struct {
 
 	UmamiUrl       string
 	UmamiWebsiteId string
+	UmamiUsername  string
+	UmamiPassword  string
 }
 
 func Load() (*Config, error) {
@@ -32,6 +34,8 @@ func Load() (*Config, error) {
 
 		UmamiUrl:       os.Getenv("UMAMI_URL"),
 		UmamiWebsiteId: os.Getenv("UMAMI_WEBSITE_ID"),
+		UmamiUsername:  os.Getenv("UMAMI_USERNAME"),
+		UmamiPassword:  os.Getenv("UMAMI_PASSWORD"),
 	}
 
 	return cfg, nil

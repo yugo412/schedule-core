@@ -12,8 +12,16 @@ import (
 type Client struct {
 	BaseURL   string
 	WebsiteID string
-	http      *resty.Client
-	logger    *slog.Logger
+	Username  string
+	Password  string
+	Token     string
+
+	http   *resty.Client
+	logger *slog.Logger
+}
+
+type LoginResponse struct {
+	Token string `json:"token"`
 }
 
 type TrackEventResponse struct {
@@ -27,17 +35,85 @@ type ErrorResponse struct {
 }
 
 func NewClient(
-	baseURL,
+	baseURL string,
 	websiteID string,
+	username string,
+	password string,
 	logger *slog.Logger,
 ) *Client {
 	return &Client{
 		BaseURL:   baseURL,
 		WebsiteID: websiteID,
-		http: resty.New().
-			SetTimeout(5 * time.Second),
+		Username:  username,
+		Password:  password,
+
+		http:   resty.New().SetTimeout(5 * time.Second),
 		logger: logger,
 	}
+}
+
+func (c *Client) ensureAuthenticated() error {
+	if c.Token != "" {
+		return nil
+	}
+
+	return c.Authenticate()
+}
+
+func (c *Client) Authenticate() error {
+	var response LoginResponse
+
+	_, err := c.http.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(map[string]string{
+			"username": c.Username,
+			"password": c.Password,
+		}).
+		SetResult(&response).
+		Post(c.BaseURL + "/api/auth/login")
+
+	if err != nil {
+		return err
+	}
+
+	if response.Token == "" {
+		return errors.New("empty umami token")
+	}
+
+	c.Token = response.Token
+
+	return nil
+}
+
+func (c *Client) Realtime() (*RealtimeResponse, error) {
+	var response RealtimeResponse
+
+	err := c.ensureAuthenticated()
+	if err != nil {
+		c.logger.Error("invalid authentication", "error", err)
+
+		return nil, err
+	}
+
+	request, err := c.http.R().
+		SetHeader("Content-Type", "application/json").
+		SetAuthToken(c.Token).
+		SetResult(&response).
+		Get(c.BaseURL + "/api/realtime/" + c.WebsiteID)
+
+	if err != nil {
+		c.logger.Warn("Failed to get realtime analytics", "error", err)
+
+		return nil, err
+	}
+
+	if request.IsError() {
+		c.logger.Warn("Failed to request realtime analytics", "error", request.Error())
+
+		return nil, errors.New("failed to request umami realtime anaylytics")
+	}
+
+	return &response, nil
 }
 
 func (c *Client) TrackEvent(
