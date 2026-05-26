@@ -297,3 +297,233 @@ func TestStatsRealtimeRoute(
 		)
 	}
 }
+
+func TestOfficialSlugRoute(
+	t *testing.T,
+) {
+	router, _, db, server := setupRouter(t)
+
+	defer server.Close()
+
+	_, err := db.Exec(`
+		INSERT INTO schedules (
+			slug,
+			title,
+			url
+		) VALUES (
+			?,
+			?,
+			?
+		)
+	`,
+		"mantra-run-2026",
+		"Mantra Run 2026",
+		"https://register.com",
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/official/mantra-run-2026",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(
+		recorder,
+		request,
+	)
+
+	response := recorder.Result()
+
+	if response.StatusCode != http.StatusFound {
+		t.Errorf(
+			"expected status %d, got %d",
+			http.StatusFound,
+			response.StatusCode,
+		)
+	}
+
+	location := response.Header.Get(
+		"Location",
+	)
+
+	if location != "https://register.com" {
+		t.Errorf(
+			"expected location %s, got %s",
+			"https://register.com",
+			location,
+		)
+	}
+}
+
+func TestRootSlugRoute(
+	t *testing.T,
+) {
+	router, cfg, db, server := setupRouter(t)
+
+	defer server.Close()
+
+	_, err := db.Exec(`
+		INSERT INTO schedules (
+			slug,
+			title,
+			url
+		) VALUES (
+			?,
+			?,
+			?
+		)
+	`,
+		"mangkunegaran-run-2026",
+		"Mangkunegaran Run 2026",
+		"https://register.com",
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/mangkunegaran-run-2026",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(
+		recorder,
+		request,
+	)
+
+	response := recorder.Result()
+
+	if response.StatusCode != http.StatusFound {
+		t.Errorf(
+			"expected status %d, got %d",
+			http.StatusFound,
+			response.StatusCode,
+		)
+	}
+
+	expected := cfg.MainUrl +
+		"/event/mangkunegaran-run-2026"
+
+	location := response.Header.Get(
+		"Location",
+	)
+
+	if location != expected {
+		t.Errorf(
+			"expected location %s, got %s",
+			expected,
+			location,
+		)
+	}
+}
+
+func TestRootRouteTracksEvent(
+	t *testing.T,
+) {
+	tracked := false
+
+	umamiServer := httptest.NewServer(
+		http.HandlerFunc(func(
+			w http.ResponseWriter,
+			r *http.Request,
+		) {
+			switch r.URL.Path {
+
+			case "/api/send":
+				tracked = true
+
+				w.Header().Set(
+					"Content-Type",
+					"application/json",
+				)
+
+				w.Write([]byte(`
+				{
+					"sessionId": "session",
+					"visitId": "visit"
+				}
+				`))
+			}
+		}),
+	)
+
+	defer umamiServer.Close()
+
+	cfg := &config.Config{
+		MainUrl: "https://example.com",
+	}
+
+	logger := slog.New(
+		slog.NewTextHandler(io.Discard, nil),
+	)
+
+	db := setupTestDB(t)
+
+	umamiClient := umami.NewClient(
+		umamiServer.URL,
+		"website-id",
+		"",
+		"",
+		logger,
+	)
+
+	application := &app.App{
+		Config: cfg,
+		Logger: logger,
+		DB:     db,
+		Umami:  umamiClient,
+	}
+
+	router := New(application)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(
+		recorder,
+		request,
+	)
+
+	response := recorder.Result()
+
+	if response.StatusCode != http.StatusFound {
+		t.Errorf(
+			"expected status %d, got %d",
+			http.StatusFound,
+			response.StatusCode,
+		)
+	}
+
+	location := response.Header.Get(
+		"Location",
+	)
+
+	if location != cfg.MainUrl {
+		t.Errorf(
+			"expected location %s, got %s",
+			cfg.MainUrl,
+			location,
+		)
+	}
+
+	if !tracked {
+		t.Errorf(
+			"expected umami track event to be called",
+		)
+	}
+}

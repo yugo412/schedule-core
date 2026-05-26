@@ -39,17 +39,9 @@ func (h *RedirectHandler) Redirect(
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			h.app.Logger.Warn(
-				"schedule not found",
-				"slug", slug,
-			)
+			h.app.Logger.Warn("schedule not found", "slug", slug)
 
-			http.Redirect(
-				w,
-				r,
-				h.app.Config.MainUrl,
-				http.StatusFound,
-			)
+			http.Redirect(w, r, h.app.Config.MainUrl, http.StatusFound)
 
 			return
 		}
@@ -60,12 +52,7 @@ func (h *RedirectHandler) Redirect(
 			"error", err,
 		)
 
-		http.Redirect(
-			w,
-			r,
-			h.app.Config.MainUrl,
-			http.StatusFound,
-		)
+		http.Redirect(w, r, h.app.Config.MainUrl, http.StatusFound)
 
 		return
 	}
@@ -101,4 +88,52 @@ func (h *RedirectHandler) Redirect(
 		schedule.Url,
 		http.StatusFound,
 	)
+}
+
+func (h *RedirectHandler) RedirectSlug(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+
+	schedule, err := h.scheduleService.FindBySlug(r.Context(), slug)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			h.app.Logger.Warn("schedule not found", "slug", slug)
+
+			http.Redirect(w, r, h.app.Config.MainUrl, http.StatusFound)
+
+			return
+		}
+
+		h.app.Logger.Warn("schedule not found", "slug", slug)
+
+		http.Redirect(w, r, h.app.Config.MainUrl, http.StatusFound)
+
+		return
+	}
+
+	if h.app.Umami != nil {
+		err := h.app.Umami.TrackEvent(
+			umami.Event{
+				Name:      "redirect-slug",
+				URL:       r.URL.Path,
+				Hostname:  r.Host,
+				Language:  "id-ID",
+				UserAgent: r.UserAgent(),
+				Data: map[string]any{
+					"slug":  schedule.Slug,
+					"url":   schedule.Url,
+					"title": schedule.Title,
+				},
+			},
+		)
+
+		if err != nil {
+			h.app.Logger.Error(
+				"failed to track umami event",
+				"slug", slug,
+				"error", err,
+			)
+		}
+	}
+
+	http.Redirect(w, r, h.app.Config.MainUrl+"/event/"+slug, http.StatusFound)
 }
