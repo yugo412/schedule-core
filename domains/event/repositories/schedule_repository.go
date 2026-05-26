@@ -3,7 +3,7 @@ package repositories
 import (
 	"context"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/vinovest/sqlx"
 	"github.com/yugo412/schedule-core/domains/event/models"
 )
 

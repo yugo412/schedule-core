@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jmoiron/sqlx"
+	"github.com/vinovest/sqlx"
 	_ "modernc.org/sqlite"
 
 	"github.com/yugo412/schedule-core/app"
