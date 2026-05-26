@@ -15,6 +15,7 @@ func Routes(app *app.App) func(r chi.Router) {
 	handler := handlers.NewRedirectHandler(app, scheduleService)
 
 	return func(r chi.Router) {
-		r.Get("/{slug}", handler.Redirect)
+		r.Get("/official/{slug}", handler.Redirect)
+		r.Get("/{slug}", handler.RedirectSlug)
 	}
 }

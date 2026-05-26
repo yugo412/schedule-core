@@ -197,3 +197,138 @@ func TestRedirectNotFound(t *testing.T) {
 		)
 	}
 }
+
+func TestRedirectSlugFound(
+	t *testing.T,
+) {
+	handler, cfg, db := setupHandler(t)
+
+	_, err := db.Exec(`
+		INSERT INTO schedules (
+			slug,
+			title,
+			url
+		) VALUES (
+			?,
+			?,
+			?
+		)
+	`,
+		"mangkunegaran-run-2026",
+		"Mangkunegaran Run 2026",
+		"https://register.com",
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/mangkunegaran-run-2026",
+		nil,
+	)
+
+	routeContext := chi.NewRouteContext()
+
+	routeContext.URLParams.Add(
+		"slug",
+		"mangkunegaran-run-2026",
+	)
+
+	request = request.WithContext(
+		context.WithValue(
+			request.Context(),
+			chi.RouteCtxKey,
+			routeContext,
+		),
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.RedirectSlug(
+		recorder,
+		request,
+	)
+
+	response := recorder.Result()
+
+	if response.StatusCode != http.StatusFound {
+		t.Errorf(
+			"expected status %d, got %d",
+			http.StatusFound,
+			response.StatusCode,
+		)
+	}
+
+	expected := cfg.MainUrl +
+		"/event/mangkunegaran-run-2026"
+
+	location := response.Header.Get(
+		"Location",
+	)
+
+	if location != expected {
+		t.Errorf(
+			"expected location %s, got %s",
+			expected,
+			location,
+		)
+	}
+}
+
+func TestRedirectSlugNotFound(
+	t *testing.T,
+) {
+	handler, cfg, _ := setupHandler(t)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/unknown-event",
+		nil,
+	)
+
+	routeContext := chi.NewRouteContext()
+
+	routeContext.URLParams.Add(
+		"slug",
+		"unknown-event",
+	)
+
+	request = request.WithContext(
+		context.WithValue(
+			request.Context(),
+			chi.RouteCtxKey,
+			routeContext,
+		),
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.RedirectSlug(
+		recorder,
+		request,
+	)
+
+	response := recorder.Result()
+
+	if response.StatusCode != http.StatusFound {
+		t.Errorf(
+			"expected status %d, got %d",
+			http.StatusFound,
+			response.StatusCode,
+		)
+	}
+
+	location := response.Header.Get(
+		"Location",
+	)
+
+	if location != cfg.MainUrl {
+		t.Errorf(
+			"expected location %s, got %s",
+			cfg.MainUrl,
+			location,
+		)
+	}
+}
