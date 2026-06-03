@@ -8,6 +8,7 @@ import (
 
 	"github.com/yugo412/schedule-core/app"
 	"github.com/yugo412/schedule-core/domains/event/services"
+	"github.com/yugo412/schedule-core/domains/url"
 	"github.com/yugo412/schedule-core/integrations/umami"
 )
 
@@ -58,29 +59,54 @@ func (h *RedirectHandler) Redirect(
 	}
 
 	if h.app.Umami != nil {
-		err := h.app.Umami.TrackEvent(
-			umami.Event{
-				Name:      "registration-click",
-				URL:       r.URL.Path,
-				Hostname:  r.Host,
-				Language:  "id-ID",
-				UserAgent: r.UserAgent(),
-				Data: map[string]any{
-					"slug":  schedule.Slug,
-					"url":   schedule.Url,
-					"title": schedule.Title,
+		go func() {
+			err := h.app.Umami.TrackEvent(
+				umami.Event{
+					Name:      "registration-click",
+					URL:       r.URL.Path,
+					Hostname:  r.Host,
+					Language:  "id-ID",
+					UserAgent: r.UserAgent(),
+					Data: map[string]any{
+						"slug":  schedule.Slug,
+						"url":   schedule.Url,
+						"title": schedule.Title,
+					},
 				},
-			},
-		)
+			)
 
-		if err != nil {
-			h.app.Logger.Error(
-				"failed to track umami event",
-				"slug", slug,
-				"error", err,
+			if err != nil {
+				h.app.Logger.Error(
+					"failed to track umami event",
+					"slug", slug,
+					"error", err,
+				)
+			}
+		}()
+	}
+
+	go func() {
+		result := url.CheckURL(schedule.Url)
+
+		if result.Status != "healthy" {
+			h.app.Umami.TrackEvent(
+				umami.Event{
+					Name:      "link-check",
+					URL:       r.URL.Path,
+					Hostname:  r.Host,
+					Language:  "id-ID",
+					UserAgent: r.UserAgent(),
+					Data: map[string]any{
+						"slug":        schedule.Slug,
+						"url":         schedule.Url,
+						"title":       schedule.Title,
+						"error":       result.Error,
+						"status_code": result.StatusCode,
+					},
+				},
 			)
 		}
-	}
+	}()
 
 	http.Redirect(
 		w,
