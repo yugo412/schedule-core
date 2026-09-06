@@ -14,6 +14,7 @@ import (
 
 	"github.com/yugo412/schedule-core/app"
 	"github.com/yugo412/schedule-core/config"
+	"github.com/yugo412/schedule-core/domains/event/models"
 	"github.com/yugo412/schedule-core/domains/event/repositories"
 	"github.com/yugo412/schedule-core/domains/event/services"
 )
@@ -205,6 +206,22 @@ func TestRedirectNotFound(t *testing.T) {
 			location,
 		)
 	}
+}
+
+func TestCheckURLWithoutUmami(t *testing.T) {
+	handler, _, _ := setupHandler(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	request := httptest.NewRequest(http.MethodGet, "/official/event", nil)
+
+	handler.checkURL(
+		&models.Schedule{Slug: "event", Url: server.URL},
+		request,
+	)
 }
 
 func TestRedirectSlugFound(
