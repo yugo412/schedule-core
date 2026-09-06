@@ -8,41 +8,51 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-chi/chi/v5"
 	"github.com/vinovest/sqlx"
-	_ "modernc.org/sqlite"
 
 	"github.com/yugo412/schedule-core/app"
 	"github.com/yugo412/schedule-core/config"
+	"github.com/yugo412/schedule-core/domains/event/models"
 	"github.com/yugo412/schedule-core/domains/event/repositories"
 	"github.com/yugo412/schedule-core/domains/event/services"
 )
 
 func setupTestDB(t *testing.T) *sqlx.DB {
-	db, err := sqlx.Connect(
-		"sqlite",
-		":memory:",
-	)
+	sqlDB, mock, err := sqlmock.New()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	schema := `
-	CREATE TABLE schedules (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		slug TEXT NOT NULL,
-		title TEXT NOT NULL,
-		url TEXT NOT NULL
-	);
-	`
+	db := sqlx.NewDb(sqlDB, "pgx")
 
-	_, err = db.Exec(schema)
-	if err != nil {
-		t.Fatal(err)
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet database expectation: %v", err)
+		}
+		db.Close()
+	})
+
+	switch t.Name() {
+	case "TestRedirectFound":
+		expectSchedule(t, mock, "mantra-run-2026", "https://example.com/register")
+	case "TestRedirectSlugFound":
+		expectSchedule(t, mock, "mangkunegaran-run-2026", "https://register.com")
 	}
 
 	return db
+}
+
+func expectSchedule(t *testing.T, mock sqlmock.Sqlmock, slug, url string) {
+	t.Helper()
+	mock.ExpectExec("INSERT INTO schedules").
+		WithArgs(slug, sqlmock.AnyArg(), url).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT url, title, slug FROM schedules WHERE slug = \\$1 LIMIT 1").
+		WithArgs(slug).
+		WillReturnRows(sqlmock.NewRows([]string{"url", "title", "slug"}).AddRow(url, "Event", slug))
 }
 
 func setupHandler(
@@ -89,9 +99,9 @@ func TestRedirectFound(t *testing.T) {
 			title,
 			url
 		) VALUES (
-			?,
-			?,
-			?
+			$1,
+			$2,
+			$3
 		)
 	`,
 		"mantra-run-2026",
@@ -198,6 +208,22 @@ func TestRedirectNotFound(t *testing.T) {
 	}
 }
 
+func TestCheckURLWithoutUmami(t *testing.T) {
+	handler, _, _ := setupHandler(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	request := httptest.NewRequest(http.MethodGet, "/official/event", nil)
+
+	handler.checkURL(
+		&models.Schedule{Slug: "event", Url: server.URL},
+		request,
+	)
+}
+
 func TestRedirectSlugFound(
 	t *testing.T,
 ) {
@@ -209,9 +235,9 @@ func TestRedirectSlugFound(
 			title,
 			url
 		) VALUES (
-			?,
-			?,
-			?
+			$1,
+			$2,
+			$3
 		)
 	`,
 		"mangkunegaran-run-2026",

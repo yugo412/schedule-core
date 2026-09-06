@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/vinovest/sqlx"
-	_ "modernc.org/sqlite"
 
 	"github.com/yugo412/schedule-core/app"
 	"github.com/yugo412/schedule-core/config"
@@ -16,30 +16,41 @@ import (
 )
 
 func setupTestDB(t *testing.T) *sqlx.DB {
-	db, err := sqlx.Connect(
-		"sqlite",
-		":memory:",
-	)
+	sqlDB, mock, err := sqlmock.New()
 
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	schema := `
-	CREATE TABLE schedules (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		slug TEXT NOT NULL,
-		title TEXT NOT NULL,
-		url TEXT NOT NULL
-	);
-	`
+	db := sqlx.NewDb(sqlDB, "pgx")
 
-	_, err = db.Exec(schema)
-	if err != nil {
-		t.Fatal(err)
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet database expectation: %v", err)
+		}
+		db.Close()
+	})
+
+	switch t.Name() {
+	case "TestOfficialRedirect":
+		expectSchedule(t, mock, "mantra-run-2026", "https://example.com/register")
+	case "TestOfficialSlugRoute":
+		expectSchedule(t, mock, "mantra-run-2026", "https://register.com")
+	case "TestRootSlugRoute":
+		expectSchedule(t, mock, "mangkunegaran-run-2026", "https://register.com")
 	}
 
 	return db
+}
+
+func expectSchedule(t *testing.T, mock sqlmock.Sqlmock, slug, url string) {
+	t.Helper()
+	mock.ExpectExec("INSERT INTO schedules").
+		WithArgs(slug, sqlmock.AnyArg(), url).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectQuery("SELECT url, title, slug FROM schedules WHERE slug = \\$1 LIMIT 1").
+		WithArgs(slug).
+		WillReturnRows(sqlmock.NewRows([]string{"url", "title", "slug"}).AddRow(url, "Event", slug))
 }
 
 func setupRouter(
@@ -191,9 +202,9 @@ func TestOfficialRedirect(t *testing.T) {
 			title,
 			url
 		) VALUES (
-			?,
-			?,
-			?
+			$1,
+			$2,
+			$3
 		)
 	`,
 		"mantra-run-2026",
@@ -311,9 +322,9 @@ func TestOfficialSlugRoute(
 			title,
 			url
 		) VALUES (
-			?,
-			?,
-			?
+			$1,
+			$2,
+			$3
 		)
 	`,
 		"mantra-run-2026",
@@ -374,9 +385,9 @@ func TestRootSlugRoute(
 			title,
 			url
 		) VALUES (
-			?,
-			?,
-			?
+			$1,
+			$2,
+			$3
 		)
 	`,
 		"mangkunegaran-run-2026",

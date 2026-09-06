@@ -7,7 +7,9 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/yugo412/schedule-core/app"
+	"github.com/yugo412/schedule-core/domains/event/models"
 	"github.com/yugo412/schedule-core/domains/event/services"
+	"github.com/yugo412/schedule-core/domains/url"
 	"github.com/yugo412/schedule-core/integrations/umami"
 )
 
@@ -58,29 +60,33 @@ func (h *RedirectHandler) Redirect(
 	}
 
 	if h.app.Umami != nil {
-		err := h.app.Umami.TrackEvent(
-			umami.Event{
-				Name:      "registration-click",
-				URL:       r.URL.Path,
-				Hostname:  r.Host,
-				Language:  "id-ID",
-				UserAgent: r.UserAgent(),
-				Data: map[string]any{
-					"slug":  schedule.Slug,
-					"url":   schedule.Url,
-					"title": schedule.Title,
+		go func() {
+			err := h.app.Umami.TrackEvent(
+				umami.Event{
+					Name:      "registration-click",
+					URL:       r.URL.Path,
+					Hostname:  r.Host,
+					Language:  "id-ID",
+					UserAgent: r.UserAgent(),
+					Data: map[string]any{
+						"slug":  schedule.Slug,
+						"url":   schedule.Url,
+						"title": schedule.Title,
+					},
 				},
-			},
-		)
-
-		if err != nil {
-			h.app.Logger.Error(
-				"failed to track umami event",
-				"slug", slug,
-				"error", err,
 			)
-		}
+
+			if err != nil {
+				h.app.Logger.Error(
+					"failed to track umami event",
+					"slug", slug,
+					"error", err,
+				)
+			}
+		}()
 	}
+
+	go h.checkURL(schedule, r)
 
 	http.Redirect(
 		w,
@@ -88,6 +94,39 @@ func (h *RedirectHandler) Redirect(
 		schedule.Url,
 		http.StatusFound,
 	)
+}
+
+func (h *RedirectHandler) checkURL(schedule *models.Schedule, r *http.Request) {
+	result := url.CheckURL(schedule.Url)
+
+	if result.Status == "healthy" || h.app.Umami == nil {
+		return
+	}
+
+	err := h.app.Umami.TrackEvent(
+		umami.Event{
+			Name:      "link-check",
+			URL:       r.URL.Path,
+			Hostname:  r.Host,
+			Language:  "id-ID",
+			UserAgent: r.UserAgent(),
+			Data: map[string]any{
+				"slug":        schedule.Slug,
+				"url":         schedule.Url,
+				"title":       schedule.Title,
+				"error":       result.Error,
+				"status_code": result.StatusCode,
+			},
+		},
+	)
+
+	if err != nil {
+		h.app.Logger.Error(
+			"failed to track link check",
+			"slug", schedule.Slug,
+			"error", err,
+		)
+	}
 }
 
 func (h *RedirectHandler) RedirectSlug(w http.ResponseWriter, r *http.Request) {

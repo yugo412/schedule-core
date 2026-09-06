@@ -8,10 +8,10 @@ import (
 )
 
 type Config struct {
-	AppEnv  string
-	AppPort string
-	DbPath  string
-	MainUrl string
+	AppEnv      string
+	AppPort     string
+	DatabaseURL string
+	MainUrl     string
 
 	UmamiUrl       string
 	UmamiWebsiteId string
@@ -27,10 +27,10 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		AppEnv:  os.Getenv("APP_ENV"),
-		AppPort: os.Getenv("APP_PORT"),
-		DbPath:  os.Getenv("DB_PATH"),
-		MainUrl: os.Getenv("MAIN_URL"),
+		AppEnv:      os.Getenv("APP_ENV"),
+		AppPort:     os.Getenv("APP_PORT"),
+		DatabaseURL: os.Getenv("DATABASE_URL"),
+		MainUrl:     os.Getenv("MAIN_URL"),
 
 		UmamiUrl:       os.Getenv("UMAMI_URL"),
 		UmamiWebsiteId: os.Getenv("UMAMI_WEBSITE_ID"),
