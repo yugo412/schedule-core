@@ -19,7 +19,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	db, err := database.NewSqlite(cfg.DbPath)
+	db, err := database.NewPostgres(cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
