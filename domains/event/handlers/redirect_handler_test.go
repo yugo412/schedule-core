@@ -49,7 +49,8 @@ func setupHandler(
 	t *testing.T,
 ) (*RedirectHandler, *config.Config, *sqlx.DB) {
 	cfg := &config.Config{
-		MainUrl: "https://example.com",
+		MainUrl:   "https://example.com",
+		UTMSource: "jadwallari.com",
 	}
 
 	logger := slog.New(
@@ -96,7 +97,7 @@ func TestRedirectFound(t *testing.T) {
 	`,
 		"mantra-run-2026",
 		"Mantra Run 2026",
-		"https://example.com/register",
+		"https://example.com/register?ref=campaign",
 	)
 
 	if err != nil {
@@ -139,7 +140,7 @@ func TestRedirectFound(t *testing.T) {
 
 	location := response.Header.Get("Location")
 
-	expected := "https://example.com/register"
+	expected := "https://example.com/register?ref=campaign&utm_source=jadwallari.com"
 
 	if location != expected {
 		t.Errorf(
