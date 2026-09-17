@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"net/http"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
 
@@ -82,10 +83,27 @@ func (h *RedirectHandler) Redirect(
 		}
 	}
 
+	destination := schedule.Url
+	if h.app.Config.UTMSource != "" {
+		target, err := url.Parse(schedule.Url)
+		if err != nil {
+			h.app.Logger.Error(
+				"failed to add UTM source to redirect URL",
+				"url", schedule.Url,
+				"error", err,
+			)
+		} else {
+			query := target.Query()
+			query.Set("utm_source", h.app.Config.UTMSource)
+			target.RawQuery = query.Encode()
+			destination = target.String()
+		}
+	}
+
 	http.Redirect(
 		w,
 		r,
-		schedule.Url,
+		destination,
 		http.StatusFound,
 	)
 }
