@@ -174,13 +174,7 @@ func (c *Client) TrackEvent(
 	)
 
 	if err == nil && errorResponse.Beep == "boop" {
-		c.logger.Warn(
-			"umami rejected event as bot",
-			"event", event.Name,
-			"url", event.URL,
-		)
-
-		return errors.New("umami rejected event")
+		return nil
 	}
 
 	c.logger.Info(
