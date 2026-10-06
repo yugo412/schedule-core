@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/vinovest/sqlx"
@@ -37,7 +38,8 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		slug TEXT NOT NULL,
 		title TEXT NOT NULL,
-		url TEXT
+		url TEXT,
+		started_at TEXT
 	);
 	`
 
@@ -519,5 +521,120 @@ func TestCheckURLSkipsWebhookWhenHealthy(t *testing.T) {
 
 	if called {
 		t.Error("expected webhook not to be called for healthy link")
+	}
+}
+
+func redirectRequest(slug string) *http.Request {
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/official/"+slug,
+		nil,
+	)
+
+	routeContext := chi.NewRouteContext()
+	routeContext.URLParams.Add("slug", slug)
+
+	return request.WithContext(
+		context.WithValue(
+			request.Context(),
+			chi.RouteCtxKey,
+			routeContext,
+		),
+	)
+}
+
+func TestRedirectSkipsLinkCheckWhenScheduleStarted(t *testing.T) {
+	handler, cfg, db := setupHandler(t)
+
+	called := make(chan struct{}, 1)
+
+	webhook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case called <- struct{}{}:
+		default:
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer webhook.Close()
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	defer target.Close()
+
+	cfg.LinkCheckWebhookURL = webhook.URL
+
+	_, err := db.Exec(
+		"INSERT INTO schedules (slug, title, url, started_at) VALUES (?, ?, ?, ?)",
+		"past-run-2026",
+		"Past Run 2026",
+		target.URL,
+		time.Now().UTC().Add(-time.Hour).Format("2006-01-02 15:04:05"),
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler.Redirect(
+		httptest.NewRecorder(),
+		redirectRequest("past-run-2026"),
+	)
+
+	select {
+	case <-called:
+		t.Fatal("expected the link check to be skipped for a schedule that already started")
+	case <-time.After(500 * time.Millisecond):
+	}
+}
+
+func TestRedirectChecksLinkWhenScheduleHasNotStarted(t *testing.T) {
+	handler, cfg, db := setupHandler(t)
+
+	called := make(chan struct{}, 1)
+
+	webhook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case called <- struct{}{}:
+		default:
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer webhook.Close()
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	defer target.Close()
+
+	cfg.LinkCheckWebhookURL = webhook.URL
+
+	_, err := db.Exec(
+		"INSERT INTO schedules (slug, title, url, started_at) VALUES (?, ?, ?, ?)",
+		"upcoming-run-2026",
+		"Upcoming Run 2026",
+		target.URL,
+		time.Now().UTC().Add(time.Hour).Format("2006-01-02 15:04:05"),
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler.Redirect(
+		httptest.NewRecorder(),
+		redirectRequest("upcoming-run-2026"),
+	)
+
+	select {
+	case <-called:
+	case <-time.After(3 * time.Second):
+		t.Fatal("expected the link check to run for an upcoming schedule")
 	}
 }

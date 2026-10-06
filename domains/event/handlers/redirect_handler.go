@@ -93,7 +93,9 @@ func (h *RedirectHandler) Redirect(
 		}
 	}
 
-	go h.checkURL(schedule)
+	if !schedule.HasStarted() {
+		go h.checkURL(schedule)
+	}
 
 	destination := schedule.Url
 	if h.app.Config.UTMSource != "" {
