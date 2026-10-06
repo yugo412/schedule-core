@@ -30,7 +30,8 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		slug TEXT NOT NULL,
 		title TEXT NOT NULL,
-		url TEXT NOT NULL
+		url TEXT NOT NULL,
+		started_at TEXT
 	);
 	`
 
