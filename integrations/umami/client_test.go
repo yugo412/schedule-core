@@ -283,7 +283,7 @@ func TestTrackEventSuccess(t *testing.T) {
 	}
 }
 
-func TestTrackEventRejected(t *testing.T) {
+func TestTrackEventIgnoresBotRejection(t *testing.T) {
 	server := httptest.NewServer(
 		http.HandlerFunc(func(
 			w http.ResponseWriter,
@@ -316,9 +316,10 @@ func TestTrackEventRejected(t *testing.T) {
 		UserAgent: "Go-http-client/1.1",
 	})
 
-	if err == nil {
+	if err != nil {
 		t.Errorf(
-			"expected error, got nil",
+			"expected nil error, got %v",
+			err,
 		)
 	}
 }
