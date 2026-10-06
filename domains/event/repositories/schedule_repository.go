@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/vinovest/sqlx"
 	"github.com/yugo412/schedule-core/domains/event/models"
@@ -18,14 +19,22 @@ func NewScheduleRepository(db *sqlx.DB) *ScheduleRepository {
 }
 
 func (r *ScheduleRepository) FindBySlug(ctx context.Context, slug string) (*models.Schedule, error) {
-	schedule := &models.Schedule{}
+	var row struct {
+		Url   sql.NullString `db:"url"`
+		Title string         `db:"title"`
+		Slug  string         `db:"slug"`
+	}
 
 	query := `SELECT url, title, slug FROM schedules where slug = ? LIMIT 1`
 
-	err := r.Db.GetContext(ctx, schedule, query, slug)
+	err := r.Db.GetContext(ctx, &row, query, slug)
 	if err != nil {
 		return nil, err
 	}
 
-	return schedule, nil
+	return &models.Schedule{
+		Slug:  row.Slug,
+		Url:   row.Url.String,
+		Title: row.Title,
+	}, nil
 }

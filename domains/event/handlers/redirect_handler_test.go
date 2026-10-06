@@ -37,7 +37,7 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		slug TEXT NOT NULL,
 		title TEXT NOT NULL,
-		url TEXT NOT NULL
+		url TEXT
 	);
 	`
 
@@ -168,6 +168,73 @@ func TestRedirectNotFound(t *testing.T) {
 	routeContext.URLParams.Add(
 		"slug",
 		"not-found",
+	)
+
+	request = request.WithContext(
+		context.WithValue(
+			request.Context(),
+			chi.RouteCtxKey,
+			routeContext,
+		),
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.Redirect(recorder, request)
+
+	response := recorder.Result()
+
+	if response.StatusCode != http.StatusFound {
+		t.Errorf(
+			"expected status %d, got %d",
+			http.StatusFound,
+			response.StatusCode,
+		)
+	}
+
+	location := response.Header.Get("Location")
+
+	if location != cfg.MainUrl {
+		t.Errorf(
+			"expected location %s, got %s",
+			cfg.MainUrl,
+			location,
+		)
+	}
+}
+
+func TestRedirectWithoutUrl(t *testing.T) {
+	handler, cfg, db := setupHandler(t)
+
+	_, err := db.Exec(`
+		INSERT INTO schedules (
+			slug,
+			title,
+			url
+		) VALUES (
+			?,
+			?,
+			NULL
+		)
+	`,
+		"null-url-run-2026",
+		"Null Url Run 2026",
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/official/null-url-run-2026",
+		nil,
+	)
+
+	routeContext := chi.NewRouteContext()
+	routeContext.URLParams.Add(
+		"slug",
+		"null-url-run-2026",
 	)
 
 	request = request.WithContext(
