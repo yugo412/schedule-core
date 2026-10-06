@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -14,8 +16,10 @@ import (
 
 	"github.com/yugo412/schedule-core/app"
 	"github.com/yugo412/schedule-core/config"
+	"github.com/yugo412/schedule-core/domains/event/models"
 	"github.com/yugo412/schedule-core/domains/event/repositories"
 	"github.com/yugo412/schedule-core/domains/event/services"
+	"github.com/yugo412/schedule-core/domains/url"
 )
 
 func setupTestDB(t *testing.T) *sqlx.DB {
@@ -331,5 +335,122 @@ func TestRedirectSlugNotFound(
 			cfg.MainUrl,
 			location,
 		)
+	}
+}
+
+func TestCheckURLWithoutWebhook(t *testing.T) {
+	handler, _, _ := setupHandler(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	defer server.Close()
+
+	handler.checkURL(
+		&models.Schedule{Slug: "event", Url: server.URL},
+	)
+}
+
+func TestCheckURLCallsWebhookOnBrokenLink(t *testing.T) {
+	handler, cfg, _ := setupHandler(t)
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+
+	defer target.Close()
+
+	var (
+		mutex    sync.Mutex
+		called   bool
+		received url.WebhookPayload
+	)
+
+	webhook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		called = true
+
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Errorf("failed to decode webhook payload: %v", err)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer webhook.Close()
+
+	cfg.LinkCheckWebhookURL = webhook.URL
+
+	handler.checkURL(
+		&models.Schedule{
+			Slug:  "event",
+			Title: "Event",
+			Url:   target.URL,
+		},
+	)
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if !called {
+		t.Fatal("expected webhook to be called")
+	}
+
+	if received.Slug != "event" {
+		t.Errorf("expected slug event, got %s", received.Slug)
+	}
+
+	if received.Status != "warning" {
+		t.Errorf("expected status warning, got %s", received.Status)
+	}
+
+	if received.StatusCode != http.StatusInternalServerError {
+		t.Errorf(
+			"expected status code %d, got %d",
+			http.StatusInternalServerError,
+			received.StatusCode,
+		)
+	}
+}
+
+func TestCheckURLSkipsWebhookWhenHealthy(t *testing.T) {
+	handler, cfg, _ := setupHandler(t)
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer target.Close()
+
+	var (
+		mutex  sync.Mutex
+		called bool
+	)
+
+	webhook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		called = true
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer webhook.Close()
+
+	cfg.LinkCheckWebhookURL = webhook.URL
+
+	handler.checkURL(
+		&models.Schedule{Slug: "event", Url: target.URL},
+	)
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if called {
+		t.Error("expected webhook not to be called for healthy link")
 	}
 }
