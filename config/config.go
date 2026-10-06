@@ -8,11 +8,12 @@ import (
 )
 
 type Config struct {
-	AppEnv    string
-	AppPort   string
-	DbPath    string
-	MainUrl   string
-	UTMSource string
+	AppEnv              string
+	AppPort             string
+	DbPath              string
+	MainUrl             string
+	UTMSource           string
+	LinkCheckWebhookURL string
 
 	UmamiUrl       string
 	UmamiWebsiteId string
@@ -28,11 +29,12 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		AppEnv:    os.Getenv("APP_ENV"),
-		AppPort:   os.Getenv("APP_PORT"),
-		DbPath:    os.Getenv("DB_PATH"),
-		MainUrl:   os.Getenv("MAIN_URL"),
-		UTMSource: os.Getenv("UTM_SOURCE"),
+		AppEnv:              os.Getenv("APP_ENV"),
+		AppPort:             os.Getenv("APP_PORT"),
+		DbPath:              os.Getenv("DB_PATH"),
+		MainUrl:             os.Getenv("MAIN_URL"),
+		UTMSource:           os.Getenv("UTM_SOURCE"),
+		LinkCheckWebhookURL: os.Getenv("LINK_CHECK_WEBHOOK_URL"),
 
 		UmamiUrl:       os.Getenv("UMAMI_URL"),
 		UmamiWebsiteId: os.Getenv("UMAMI_WEBSITE_ID"),

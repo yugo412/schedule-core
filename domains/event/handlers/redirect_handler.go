@@ -3,12 +3,14 @@ package handlers
 import (
 	"database/sql"
 	"net/http"
-	"net/url"
+	neturl "net/url"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/yugo412/schedule-core/app"
+	"github.com/yugo412/schedule-core/domains/event/models"
 	"github.com/yugo412/schedule-core/domains/event/services"
+	"github.com/yugo412/schedule-core/domains/url"
 	"github.com/yugo412/schedule-core/integrations/umami"
 )
 
@@ -83,9 +85,11 @@ func (h *RedirectHandler) Redirect(
 		}
 	}
 
+	go h.checkURL(schedule)
+
 	destination := schedule.Url
 	if h.app.Config.UTMSource != "" {
-		target, err := url.Parse(schedule.Url)
+		target, err := neturl.Parse(schedule.Url)
 		if err != nil {
 			h.app.Logger.Error(
 				"failed to add UTM source to redirect URL",
@@ -106,6 +110,34 @@ func (h *RedirectHandler) Redirect(
 		destination,
 		http.StatusFound,
 	)
+}
+
+func (h *RedirectHandler) checkURL(schedule *models.Schedule) {
+	result := url.CheckURL(schedule.Url)
+
+	if result.Status == "healthy" || h.app.Config.LinkCheckWebhookURL == "" {
+		return
+	}
+
+	err := url.SendWebhook(
+		h.app.Config.LinkCheckWebhookURL,
+		url.WebhookPayload{
+			Slug:       schedule.Slug,
+			URL:        schedule.Url,
+			Title:      schedule.Title,
+			Status:     result.Status,
+			StatusCode: result.StatusCode,
+			Error:      result.Error,
+		},
+	)
+
+	if err != nil {
+		h.app.Logger.Error(
+			"failed to send link check webhook",
+			"slug", schedule.Slug,
+			"error", err,
+		)
+	}
 }
 
 func (h *RedirectHandler) RedirectSlug(w http.ResponseWriter, r *http.Request) {
