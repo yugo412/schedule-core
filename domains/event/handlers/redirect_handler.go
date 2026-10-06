@@ -60,6 +60,14 @@ func (h *RedirectHandler) Redirect(
 		return
 	}
 
+	if schedule.Url == "" {
+		h.app.Logger.Warn("schedule has no url", "slug", slug)
+
+		http.Redirect(w, r, h.app.Config.MainUrl, http.StatusFound)
+
+		return
+	}
+
 	if h.app.Umami != nil {
 		err := h.app.Umami.TrackEvent(
 			umami.Event{
